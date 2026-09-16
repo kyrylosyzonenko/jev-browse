@@ -1,0 +1,23 @@
+{
+  "name": "jev-browse",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "jev-browse": "./jev-browse.mjs",
+    "jev-browse-mcp": "./mcp.mjs"
+  },
+  "files": [
+    "jev-browse.mjs",
+    "mcp.mjs"
+  ],
+  "scripts": {
+    "start": "node --env-file-if-exists=.env jev-browse.mjs",
+    "mcp": "node mcp.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "zod": "^4.6.5"
+  }
+}
