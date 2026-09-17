@@ -97,6 +97,12 @@ To add the server to Codex, run the following command:
 codex mcp add jev-browse --env TYPESAFE_API_KEY=YOUR_API_KEY -- npx -y -p github:kyrylosyzonenko/jev-browse jev-browse-mcp
 ```
 
+To add the server to Hermes Agent, run the following command:
+
+```bash
+hermes mcp add jev-browse --command npx --env TYPESAFE_API_KEY=YOUR_API_KEY --args -y -p github:kyrylosyzonenko/jev-browse jev-browse-mcp
+```
+
 Any other MCP client that runs stdio servers can use the same `npx` command.
 
 ## Run the benchmark
