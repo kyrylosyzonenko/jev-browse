@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Jev picks which element to click or which given text to type, code runs agent-browser. Usage:
-//   node --env-file-if-exists=.env jev-browse.mjs "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8]
+//   node --env-file-if-exists=.env jev-browse.mjs "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8] [--no-network-wait]
 import { execFileSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import { TypeSafeClient } from "@typesafe-ai/sdk";
@@ -17,12 +17,13 @@ const { values, positionals } = parseArgs({
     steps: { type: "string", default: "15" },
     done: { type: "string", default: "0.8" },
     text: { type: "string", multiple: true, default: [] },
+    "no-network-wait": { type: "boolean", default: false },
   },
 });
 const [goal, startUrl] = positionals;
 const texts = Object.fromEntries(values.text.map((t) => [t.slice(0, t.indexOf("=")), t.slice(t.indexOf("=") + 1)]));
 if (!goal || values.text.some((t) => !(t.indexOf("=") > 0))) {
-  console.error('usage: jev-browse "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8]');
+  console.error('usage: jev-browse "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8] [--no-network-wait]');
   process.exit(2);
 }
 
@@ -63,6 +64,9 @@ const pickQuestion = (criteria) => ({
       "Prefer a link whose target is the goal itself over links that only relate to it.",
       "`history` lists actions already made. Don't repeat an action that didn't get closer.",
       "Type a value from `texts` only into the box it belongs in. After typing, press Enter or click the submit button.",
+      "If typing opened a list of suggestions, click the option that matches the typed value before moving to another box. Otherwise the site discards the value.",
+      "A form field that already shows the right value is done. Don't type into it again.",
+      "If a field shows a different value than the `texts` value typed into it earlier, the site reset it. Type the value again.",
     ],
   },
   criteria,
@@ -88,7 +92,8 @@ for (let step = 1; step <= Number(values.steps); step++) {
       candidates.push([`type:${ref}:${name}`, `type \`texts.${name}\` into ${r.role}: ${r.name?.trim().slice(0, 200) ?? ""}`]);
     }
   }
-  if (history.at(-1)?.url === url && history.at(-1).action.startsWith("type ")) {
+  // Typing into a plain textbox already ends with Tab, so Enter would hit the next element.
+  if (history.at(-1)?.url === url && history.at(-1).action.startsWith("type ") && !history.at(-1).action.includes(" into textbox:")) {
     candidates.push(["enter", "Press Enter to submit the text just typed"]);
   }
   candidates.push(["back", "Go back to the previous page"]);
@@ -103,8 +108,8 @@ for (let step = 1; step <= Number(values.steps); step++) {
       type: "noul",
       instructions: "Is `current_page` the page that `goal` asks to reach?",
       criteria: {
-        true: "The page itself is the target, for example the article or section the goal names",
-        false: "The page only mentions or links to the target, or is a different page",
+        true: "The page itself is the target, for example the article or section the goal names, and every value the goal names, such as a place, date, count, or sort order, shows on the page",
+        false: "The page only mentions or links to the target, is a different page, or shows a value that differs from one the goal names",
       },
     },
     blocked: {
@@ -174,6 +179,8 @@ for (let step = 1; step <= Number(values.steps); step++) {
     } else if (pick.choice.startsWith("type:")) {
       const [ref, name] = [pick.choice.slice(5, pick.choice.indexOf(":", 5)), pick.choice.slice(pick.choice.indexOf(":", 5) + 1)];
       ab("fill", `@${ref}`, texts[name]);
+      // Date pickers and similar fields commit a typed value only on blur. Tab blurs without submitting the form.
+      if (refs[ref].role === "textbox") ab("press", "Tab");
     } else if (refs[pick.choice].role === "link") {
       // agent-browser clicks the center of the bounding box, which misses links that wrap onto two lines.
       const href = ab("get", "attr", `@${pick.choice}`, "href").trim();
@@ -190,6 +197,12 @@ for (let step = 1; step <= Number(values.steps); step++) {
   ab("wait", "--load", "load");
   // Single-page apps change routes without a new page load, so give the DOM a moment to settle.
   ab("wait", "250");
+  // Background reloads after a click or a committed value overwrite fields typed before they end.
+  if (!values["no-network-wait"]) {
+    try {
+      ab("wait", "--load", "networkidle");
+    } catch {}
+  }
 }
 
 console.log("step limit reached");

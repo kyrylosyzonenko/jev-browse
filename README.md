@@ -8,16 +8,16 @@ jev-browse is an unofficial project and isn't affiliated with TypeSafe or Vercel
 
 ## Benchmark
 
-The following table compares jev-browse with Claude Code driving agent-browser directly on the same 10 tasks, 3 runs each, on 16 September 2026. Both agents had the same limits: agent-browser commands only, no entering URLs, and only the texts given for the task. Every run started with cleared cookies and site storage.
+The following table compares jev-browse with Claude Code driving agent-browser directly on the same 10 tasks, 3 runs each. Claude Code ran on 16 September 2026, and jev-browse ran on 17 September 2026 with its default network wait. Both agents had the same limits: agent-browser commands only, no entering URLs, and only the texts given for the task. Every run started with cleared cookies and site storage.
 
 | Agent | Passed | Median time per task | Cost per task |
 | --- | --- | --- | --- |
-| jev-browse (Jev + agent-browser) | 30/30 | 3.1 s | $0.0009 |
+| jev-browse (Jev + agent-browser) | 30/30 | 4.4 s | $0.0009 |
 | Claude Code (Claude Sonnet 5) + agent-browser | 30/30 | 9.4 s | $0.0679 |
 
-The tasks include navigation goals on Wikipedia, Hacker News, example.com, and the TypeSafe docs, 2 goals that need typing, and 2 goals that the agent must refuse, such as logging in without credentials. The longest task runs a checkout on the [Sauce Labs demo shop](https://www.saucedemo.com): log in, add 2 items to the cart, fill in the checkout form, and stop before **Finish**. jev-browse finished it in 8.4 to 8.9 s for $0.0009. Claude Code took 19.8 to 29.3 s for about $0.08.
+The tasks include navigation goals on Wikipedia, Hacker News, example.com, and the TypeSafe docs, 2 goals that need typing, and 2 goals that the agent must refuse, such as logging in without credentials. The longest task runs a checkout on the [Sauce Labs demo shop](https://www.saucedemo.com): log in, add 2 items to the cart, fill in the checkout form, and stop before **Finish**. jev-browse finished it in 23.3 to 23.5 s for $0.0010. Claude Code took 19.8 to 29.3 s for about $0.08.
 
-The results show that jev-browse is faster and cheaper on these tasks. They don't show how it performs on longer or more complex tasks.
+The results show that jev-browse has a lower median time and costs about 70 times less on these tasks. On the checkout task, the default network wait makes jev-browse about as fast as Claude Code. They don't show how it performs on longer or more complex tasks.
 
 Jev cost is the input tokens at $0.042 per million tokens. Claude Code cost is the `total_cost_usd` value that Claude Code reports at API list prices. To rerun the benchmark, see [Run the benchmark](#run-the-benchmark).
 
@@ -70,6 +70,7 @@ The command-line tool has these options:
 | `--text NAME=VALUE` | None | A text that the agent may type. Repeat the option for more texts. |
 | `--steps N` | `15` | The maximum number of steps. |
 | `--done P` | `0.8` | The probability at which a run stops as reached or blocked. |
+| `--no-network-wait` | Off | Skips waiting for network activity to end after every action. Runs are faster, but sites that reload in the background, such as Google Hotels, can reset typed values. |
 
 The command exits with one of these codes:
 
@@ -83,7 +84,7 @@ The command exits with one of these codes:
 
 ## Use the MCP server
 
-The MCP server exposes one tool, `browse`. The tool takes a `goal`, an optional `url`, optional `texts` such as `{"query": "Kermit the Frog"}`, and an optional `steps` limit. It returns a status of `reached`, `stopped`, `blocked`, or `error`, the final URL, and the step log. The browser stays open afterward, so the calling agent can read the final page with agent-browser.
+The MCP server exposes one tool, `browse`. The tool takes a `goal`, an optional `url`, optional `texts` such as `{"query": "Kermit the Frog"}`, an optional `steps` limit, and an optional `networkWait` switch that is `true` by default. It returns a status of `reached`, `stopped`, `blocked`, or `error`, the final URL, and the step log. The browser stays open afterward, so the calling agent can read the final page with agent-browser.
 
 To add the server to Claude Code, run the following command:
 

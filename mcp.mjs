@@ -25,10 +25,12 @@ server.registerTool(
       url: z.string().url().optional().describe("Page to open first; omit to continue from the current page"),
       texts: z.record(z.string().regex(/^[\w-]+$/), z.string()).optional().describe('Texts the agent may type, by name, for example {"query": "Kermit the Frog"}'),
       steps: z.number().int().min(1).max(50).optional().describe("Step limit, default 15"),
+      networkWait: z.boolean().optional().describe("Wait for network activity to end after every action, default true. Turn off for speed on static sites."),
     },
   },
-  async ({ goal, url, texts = {}, steps = 15 }) => {
+  async ({ goal, url, texts = {}, steps = 15, networkWait = true }) => {
     const args = [`--env-file-if-exists=${here(".env")}`, here("jev-browse.mjs"), "--steps", String(steps)];
+    if (!networkWait) args.push("--no-network-wait");
     args.push(...Object.entries(texts).flatMap(([k, v]) => ["--text", `${k}=${v}`]));
     // "--" keeps a goal that starts with a dash from being read as an option.
     args.push("--", goal, ...(url ? [url] : []));
