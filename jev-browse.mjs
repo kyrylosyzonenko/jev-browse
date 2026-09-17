@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Jev picks which element to click or which given text to type, code runs agent-browser. Usage:
-//   node --env-file-if-exists=.env jev-browse.mjs "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8] [--no-network-wait]
+//   node --env-file-if-exists=.env jev-browse.mjs "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8] [--no-network-wait] [--extract "what to return"]
 import { execFileSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import { TypeSafeClient } from "@typesafe-ai/sdk";
@@ -18,12 +18,13 @@ const { values, positionals } = parseArgs({
     done: { type: "string", default: "0.8" },
     text: { type: "string", multiple: true, default: [] },
     "no-network-wait": { type: "boolean", default: false },
+    extract: { type: "string" },
   },
 });
 const [goal, startUrl] = positionals;
 const texts = Object.fromEntries(values.text.map((t) => [t.slice(0, t.indexOf("=")), t.slice(t.indexOf("=") + 1)]));
 if (!goal || values.text.some((t) => !(t.indexOf("=") > 0))) {
-  console.error('usage: jev-browse "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8] [--no-network-wait]');
+  console.error('usage: jev-browse "<goal>" [start-url] [--text name=value]... [--steps N] [--done 0.8] [--no-network-wait] [--extract "what to return"]');
   process.exit(2);
 }
 
@@ -71,6 +72,46 @@ const pickQuestion = (criteria) => ({
   },
   criteria,
 });
+
+// Jev can't write text, so it selects page lines that match `--extract`, and code prints them verbatim.
+async function extract(snapshot) {
+  const lines = [
+    ...new Set(
+      snapshot
+        .split("\n")
+        .map((l) => l.replace(/^\s*- /, "").replace(/ \[[^\]]*\]/g, "").replace(/^(\w+) "(.*)"(:.*)?$/, "$2$3").trim())
+        .filter((l) => /\w/.test(l) && !/^\w+:?$/.test(l))
+        .map((l) => l.slice(0, 300)),
+    ),
+  ];
+  // About 15 short lines and their questions fit well inside one request's token budget.
+  const batches = [];
+  for (let i = 0; i < lines.length; i += 15) batches.push(lines.slice(i, i + 15));
+  const answers = await Promise.all(
+    batches.map((batch) =>
+      client.systemOne({
+        state: { wanted: values.extract, lines: batch },
+        questions: Object.fromEntries(
+          batch.map((_, j) => [
+            `l${j}`,
+            {
+              type: "noul",
+              instructions: `Is \`lines[${j}]\` one complete item of the kind described by \`wanted\`?`,
+              criteria: {
+                true: "The line names one item and contains every detail that `wanted` asks for",
+                false: "The line is a heading, button, control, label, rating, description, or photo link, or it lacks a detail that `wanted` asks for",
+              },
+            },
+          ]),
+        ),
+      }),
+    ),
+  );
+  const tokens = answers.reduce((sum, r) => sum + r.usage.input_tokens, 0);
+  const picked = batches.flatMap((batch, b) => batch.filter((_, j) => answers[b].answers[`l${j}`].noul >= 0.5));
+  console.log(`extracted ${picked.length} of ${lines.length} lines tokens=${tokens}`);
+  for (const line of picked) console.log(`- ${line}`);
+}
 
 if (startUrl) ab("open", startUrl);
 const history = [];
@@ -137,6 +178,7 @@ for (let step = 1; step <= Number(values.steps); step++) {
   console.log(`[${step}] ${title} <${url}> done=${doneP.toFixed(2)} blocked=${blockedP.toFixed(2)} tokens=${first.usage.input_tokens}`);
   if (doneP >= Number(values.done)) {
     console.log("goal reached");
+    if (values.extract) await extract(snapshot);
     process.exit(0);
   }
   if (blockedP >= Number(values.done)) {

@@ -38,7 +38,7 @@ jev-browse has these limits:
 - It types only the texts that you pass. It can't write its own text or enter URLs.
 - It logs in only with a username and password that you pass as texts. It can't create accounts, solve CAPTCHAs, hover, drag, upload files, or download files.
 - When several elements on a page have the same label, such as a row of **Add to cart** buttons, it sees only the first one.
-- It doesn't write answers or summaries. A run succeeds when it ends on the page that the goal names.
+- It doesn't write answers or summaries. A run succeeds when it ends on the page that the goal names. With `--extract`, it returns matching page lines verbatim, and it can miss some of them.
 - It sends the page content and your texts, including any password, to TypeSafe with every request. Pass only test or throwaway credentials.
 
 ## Requirements
@@ -70,6 +70,7 @@ The command-line tool has these options:
 | `--text NAME=VALUE` | None | A text that the agent may type. Repeat the option for more texts. |
 | `--steps N` | `15` | The maximum number of steps. |
 | `--done P` | `0.8` | The probability at which a run stops as reached or blocked. |
+| `--extract WHAT` | None | Describes the data to return from the final page, such as `hotels, each with its price`. When the goal is reached, Jev selects the page lines that match, and the command prints them verbatim after `extracted`. |
 | `--no-network-wait` | Off | Skips waiting for network activity to end after every action. Runs are faster, but sites that reload in the background, such as Google Hotels, can reset typed values. |
 
 The command exits with one of these codes:
@@ -84,7 +85,7 @@ The command exits with one of these codes:
 
 ## Use the MCP server
 
-The MCP server exposes one tool, `browse`. The tool takes a `goal`, an optional `url`, optional `texts` such as `{"query": "Kermit the Frog"}`, an optional `steps` limit, and an optional `networkWait` switch that is `true` by default. It returns a status of `reached`, `stopped`, `blocked`, or `error`, the final URL, and the step log. The browser stays open afterward, so the calling agent can read the final page with agent-browser.
+The MCP server exposes one tool, `browse`. The tool takes a `goal`, an optional `url`, optional `texts` such as `{"query": "Kermit the Frog"}`, an optional `steps` limit, an optional `extract` description of the data to return, and an optional `networkWait` switch that is `true` by default. It returns a status of `reached`, `stopped`, `blocked`, or `error`, the final URL, the step log, and any extracted lines. The browser stays open afterward, so the calling agent can read the final page with agent-browser.
 
 To add the server to Claude Code, run the following command:
 
